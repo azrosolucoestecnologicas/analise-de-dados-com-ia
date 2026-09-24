@@ -1,0 +1,113 @@
+BRIEFING DO PROJETO: Painel Selic e Crédito (versão Claude Code)
+
+Quem sou e o que quero
+Sou analista de dados e vou construir este projeto em etapas, validando cada
+uma antes de avançar. Quero um painel de apoio à decisão sobre a relação entre
+a taxa Selic e o crédito às famílias no Brasil, apoiado em duas camadas de
+evidência: dados oficiais em JSON e uma pesquisa profunda com fontes
+verificáveis.
+
+Decisão que o painel apoia
+Um gerente de crédito de uma cooperativa precisa decidir se aperta ou afrouxa
+a concessão a pessoas físicas nos próximos seis meses.
+
+Camada 1: dados (reais, APIs do Banco Central, sem dados sintéticos)
+URLs completas de cada fonte. No coletor, mantenha dataInicial=01/01/2017 e
+calcule dataFinal como a data de hoje (dd/mm/aaaa).
+
+Selic meta, diária (432)
+https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=01/01/2017&dataFinal=19/09/2026
+
+IPCA acumulado em 12 meses (13522)
+https://api.bcb.gov.br/dados/serie/bcdata.sgs.13522/dados?formato=json&dataInicial=01/01/2017&dataFinal=19/09/2026
+
+Endividamento das famílias (29037)
+https://api.bcb.gov.br/dados/serie/bcdata.sgs.29037/dados?formato=json&dataInicial=01/01/2017&dataFinal=19/09/2026
+
+Comprometimento de renda das famílias (29034)
+https://api.bcb.gov.br/dados/serie/bcdata.sgs.29034/dados?formato=json&dataInicial=01/01/2017&dataFinal=19/09/2026
+
+Inadimplência de pessoa física (21084)
+https://api.bcb.gov.br/dados/serie/bcdata.sgs.21084/dados?formato=json&dataInicial=01/01/2017&dataFinal=19/09/2026
+
+Focus, expectativa anual para a Selic (API Olinda)
+https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais?$filter=Indicador%20eq%20'Selic'&$orderby=Data%20desc&$top=50&$format=json
+
+Cuidados com as APIs do BCB
+- A API SGS pode devolver HTTP 200 com uma página HTML quando recusa a
+  requisição. Valide que o corpo começa com [ e tente até 3 vezes, com
+  pausa entre as tentativas e mensagem clara de erro.
+- Série diária (432) exige dataInicial e dataFinal e aceita no máximo
+  10 anos por requisição.
+- Na API Olinda, monte a URL à mão, exatamente como acima, com %20.
+  Não use params= do requests. Do retorno, use Data, DataReferencia e Mediana:
+  mediana mais recente para o fim deste ano e do próximo.
+- Se uma API falhar, o projeto continua: use os arquivos já salvos em dados/
+  e avise no painel que aquele dado não foi atualizado.
+
+Camada 2: pesquisa profunda (etapa 2, logo após a coleta dos JSON)
+- Ponto de partida: o problema deste briefing e o que os JSON mostram.
+- Tema: como a Selic se transmite ao crédito das famílias no Brasil.
+  Defasagens documentadas, comprometimento de renda, inadimplência PF e
+  fatores além dos juros (emprego, renda, inflação, renegociação, regulação).
+- Fontes, nesta ordem: Banco Central (comunicados e atas do Copom, Relatório
+  de Política Monetária, Relatório de Economia Bancária, estatísticas de
+  crédito), IBGE, Ipea e literatura acadêmica. Imprensa só como complemento.
+- Limite: no máximo 8 fontes e cerca de 8 minutos. Prefira poucas fontes
+  boas a muitas superficiais.
+- Saída: arquivo pesquisa_contexto.md, com uma tabela de afirmação,
+  evidência, fonte, URL, data e grau de confiança (alto, médio, baixo),
+  seguida de um resumo de até 10 linhas.
+- Só registre o que você de fato leu na fonte. Nunca invente URL, número ou
+  citação. Se não encontrar evidência, escreva "não encontrado".
+- Não faça nenhuma análise nesta etapa.
+- Se a busca na web não estiver disponível ou eu já tiver fornecido um
+  pesquisa_contexto.md, use o arquivo existente e avise.
+
+Como as duas camadas se combinam
+- Números, variações, correlações e projeções vêm SEMPRE dos JSON.
+  A pesquisa nunca altera, completa ou substitui um valor.
+- A pesquisa serve para contextualizar, discutir mecanismos, defasagens
+  plausíveis, variáveis de confusão e riscos.
+- Em todo insight do painel, separe visualmente: "Dado observado",
+  "Contexto da pesquisa" (com a fonte) e "Interpretação".
+- Se o dado e a pesquisa divergirem, mostre a divergência. Não escolha um lado.
+
+Entrega final
+Um único arquivo painel.html, que abre sem servidor, com a pergunta de
+decisão e a data de geração no topo e quatro seções:
+1. Descritiva: o que aconteceu
+2. Diagnóstica: por que aconteceu (correlação com defasagem de 0 a 18 meses)
+3. Preditiva: tendência simples (média móvel de 6 meses, inclinação recente,
+   projeção de 6 meses com faixa de incerteza), Focus ao lado, sem machine
+   learning. Separar projeção do modelo, consenso externo e incertezas.
+4. Prescritiva: três cenários de Selic. Para cada ação: dado quantitativo,
+   evidência externa, trade-off e condição que invalidaria a recomendação.
+   Fechar com as limitações do painel.
+
+Restrições
+- Python 3 simples: bibliotecas padrão e requests. Nada de pandas ou numpy.
+- Estrutura: coletor.py, analise.py, pasta dados/ com um JSON por série
+  (selic_432.json, ipca12m_13522.json, endividamento_29037.json,
+  comprometimento_29034.json, inadimplencia_pf_21084.json, focus_selic.json),
+  pesquisa_contexto.md na raiz.
+- Gráficos com Chart.js via CDN (cdnjs), a mesma biblioteca em todas as etapas.
+- Cada etapa ACRESCENTA uma seção ao painel. Nunca recrie o painel do zero
+  nem altere seções já validadas sem eu pedir.
+- Tudo em frequência mensal: para a Selic, último valor de cada mês.
+  Nunca preencher dado ausente sem avisar.
+- Variações de taxas sempre em pontos percentuais.
+- Todo gráfico com unidade, período e fonte (Banco Central do Brasil, SGS,
+  código da série). Todo card com a data de referência do dado.
+- Textos em português do Brasil, linguagem simples, sem travessões.
+- Distinguir sempre associação de causa e informar o número de observações
+  de cada cálculo.
+
+Como vamos trabalhar
+Crie o CLAUDE.md com este contexto e um plano em 6 etapas de construção
+(1 coletor, 2 pesquisa profunda, 3 descritiva, 4 diagnóstica, 5 preditiva,
+6 prescritiva). Registre no plano que as etapas 3 a 6 dependem dos JSON e
+de pesquisa_contexto.md. NÃO programe nada agora. Vou pedir uma etapa por
+vez, com a frase "Execute a etapa N", e validar cada uma antes de seguir.
+Ao terminar cada etapa, rode o que for preciso, mostre um resumo curto do
+que fez e pare.

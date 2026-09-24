@@ -1,0 +1,106 @@
+# Pipeline único: coleta → (comentário do modelo) → testes → build → GitHub Pages.
+#
+# Os dois atos da aula estão neste mesmo arquivo, separados por uma condição:
+#
+#   ATO 1 — determinístico. Rode pelo botão com "com_ia" DESMARCADO.
+#           Sem chave, sem custo, saída reprodutível.
+#   ATO 2 — com modelo. Rode pelo botão com "com_ia" MARCADO.
+#           Chave por secret, custo por execução, saída diferente a cada vez.
+#
+# O gatilho decide o custo: push nunca chama o modelo (seria pago a cada commit),
+# o cron diário sempre chama.
+
+name: Publicar painel
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 12:00 UTC = 09:00 em Brasília. O cron é a razão de existir do pipeline:
+    # o dado muda sozinho (Copom, séries mensais), o código não.
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      com_ia:
+        description: "Gerar o comentário com o modelo (ato 2)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    env:
+      # Verdadeiro no cron e quando a caixa está marcada no disparo manual.
+      # Falso no push — commit não paga chamada de modelo.
+      COM_IA: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.com_ia) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: pip install requests anthropic
+
+      - name: Coletar a série do Banco Central
+        run: python coletor.py
+
+      # ---------------------------------------------------------------- ATO 2
+      - name: Gerar o comentário com o modelo
+        if: env.COM_IA == 'true'
+        # A chave NUNCA está no repositório. Vem de
+        # Settings → Secrets and variables → Actions → New repository secret
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python comentario.py
+
+      - name: Testar as propriedades da saída
+        if: env.COM_IA == 'true'
+        # O portão. Se o modelo inventar um número, afirmar causa ou devolver
+        # markdown, o build quebra AQUI e nada é publicado.
+        # Repare: diff não serviria — a saída nunca se repete.
+        run: python testes.py
+
+      - name: Mostrar que a saída do modelo não se repete
+        if: env.COM_IA == 'true'
+        run: |
+          md5sum dados/comentario.json
+          echo "Anote este hash: na próxima execução ele será outro,"
+          echo "com exatamente a mesma entrada."
+      # ------------------------------------------------------------- fim ato 2
+
+      - name: Gerar o painel
+        run: python build.py
+
+      - name: Provar que o build é reprodutível
+        if: env.COM_IA != 'true'
+        # Só faz sentido no ato 1: aqui a única entrada é dados/selic.json.
+        run: |
+          md5sum public/index.html
+          python build.py
+          md5sum public/index.html
+          echo "Mesma entrada, mesma saída. É isso que permite testar com diff."
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

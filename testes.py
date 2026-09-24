@@ -17,6 +17,9 @@ VERBOS_CAUSAIS = ["causou", "causa ", "causam", "provocou", "provoca ", "levou a
                   "resultou em", "fez com que", "por causa d", "devido a",
                   "em razão d", "graças a"]
 
+MESES_EXTENSO = ("(?:janeiro|fevereiro|mar\u00e7o|abril|maio|junho|julho|"
+                 "agosto|setembro|outubro|novembro|dezembro)")
+
 VERBOS_PRESCRITIVOS = ["recomend", "deve ", "deveria", "sugere-se", "aconselh"]
 
 
@@ -46,14 +49,18 @@ def main() -> None:
     falhas = []
 
     # 1. Todo número citado existe nos dados.
-    # Datas saem antes: o ano não é um valor de série.
+    # Datas saem antes da varredura — o ano não é um valor de série.
+    # Ponto cego conhecido: um número que se pareça com ano (ex.: "2026 vezes")
+    # escapa. É o preço de não reprovar leitura legítima que cite datas.
     permitidos = numeros_permitidos(fatos)
     sem_datas = re.sub(
-        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b"      # 18/09/2026
-        r"|\b\w{3,10}[/-]\d{4}\b"                 # set/2026
-        r"|\b\d{1,2}[/-]\d{4}\b"                  # 09/2026
-        r"|\b(?:19|20)\d{2}\b",                   # 2026
-        " ", texto)
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b"                 # 18/09/2026
+        r"|\b\d{1,2}\s+de\s+" + MESES_EXTENSO + r"(?:\s+de\s+\d{4})?"  # 18 de setembro (de 2026)
+        r"|\b" + MESES_EXTENSO + r"\s+de\s+\d{4}"           # setembro de 2026
+        r"|\b\w{3,10}[/-]\d{4}\b"                           # set/2026
+        r"|\b\d{1,2}[/-]\d{4}\b"                            # 09/2026
+        r"|\b(?:19|20)\d{2}\b",                             # 2026
+        " ", texto, flags=re.IGNORECASE)
     inventados = [n for n in re.findall(r"\d+(?:,\d+)?", sem_datas) if n not in permitidos]
     if inventados:
         falhas.append(f"números que não existem nos dados: {sorted(set(inventados))}")

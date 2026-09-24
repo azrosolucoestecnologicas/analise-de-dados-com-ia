@@ -45,6 +45,7 @@ Selic faz e o que os indicadores de crédito mostram.
 Regras rígidas:
 - Use somente os números que eu forneço. Não calcule nem estime nenhum outro valor.
 - Não repita a palavra "referência" em toda frase. Cite o mês de forma natural.
+- Não cite a data de coleta do Focus nem o número de respondentes: não ajudam a leitura.
 - Números no formato brasileiro, com vírgula decimal (13,75).
 - Variação de taxa sempre em pontos percentuais (p.p.), nunca em porcentagem.
 - NÃO afirme causa, em nenhuma hipótese. Não use "causou", "provocou", "levou a",

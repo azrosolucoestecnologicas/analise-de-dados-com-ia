@@ -24,6 +24,8 @@ def numeros_permitidos(fatos: dict) -> set[str]:
     """Todo número citado tem que sair daqui — senão o modelo inventou."""
     permitidos = {"12"}  # a janela de comparação ("em 12 meses")
     for f in fatos.values():
+        if f.get("respondentes") is not None:
+            permitidos.add(str(f["respondentes"]))
         for valor in (f["atual"], f["ha_12_meses"], f["variacao_12m"]):
             if valor is None:
                 continue
@@ -46,8 +48,12 @@ def main() -> None:
     # 1. Todo número citado existe nos dados.
     # Datas saem antes: o ano não é um valor de série.
     permitidos = numeros_permitidos(fatos)
-    sem_datas = re.sub(r"\b\w{3,10}[/-]\d{4}\b|\b\d{1,2}[/-]\d{4}\b|\b(?:19|20)\d{2}\b",
-                       " ", texto)
+    sem_datas = re.sub(
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b"      # 18/09/2026
+        r"|\b\w{3,10}[/-]\d{4}\b"                 # set/2026
+        r"|\b\d{1,2}[/-]\d{4}\b"                  # 09/2026
+        r"|\b(?:19|20)\d{2}\b",                   # 2026
+        " ", texto)
     inventados = [n for n in re.findall(r"\d+(?:,\d+)?", sem_datas) if n not in permitidos]
     if inventados:
         falhas.append(f"números que não existem nos dados: {sorted(set(inventados))}")

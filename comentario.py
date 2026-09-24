@@ -34,10 +34,17 @@ SERIES = {
 INSTRUCOES = """Você escreve a leitura diária de um painel público sobre Selic e crédito
 às famílias no Brasil, dirigido a um gerente de crédito de cooperativa.
 
-Escreva UM parágrafo de 3 a 4 frases situando o quadro atual.
+Escreva UM parágrafo de 3 a 4 frases situando o quadro atual para quem decide
+política de crédito.
+
+ESCOLHA os números que importam — normalmente três ou quatro. Não repita todos os
+que eu mandei: uma lista completa não é leitura, é inventário, e o painel já mostra
+todos os valores nos cards logo abaixo. Prefira apontar o contraste entre o que a
+Selic faz e o que os indicadores de crédito mostram.
 
 Regras rígidas:
 - Use somente os números que eu forneço. Não calcule nem estime nenhum outro valor.
+- Não repita a palavra "referência" em toda frase. Cite o mês de forma natural.
 - Números no formato brasileiro, com vírgula decimal (13,75).
 - Variação de taxa sempre em pontos percentuais (p.p.), nunca em porcentagem.
 - NÃO afirme causa, em nenhuma hipótese. Não use "causou", "provocou", "levou a",

@@ -1,11 +1,9 @@
-"""Testes de propriedade sobre a saída do modelo.
+"""Testes de propriedade sobre a leitura gerada pelo modelo.
 
-O ponto da aula: você NÃO pode testar uma saída não determinística com diff,
-porque ela nunca se repete. O que dá para testar são propriedades que a saída
-precisa ter, aconteça o que acontecer.
+A saída de um modelo não se repete, então diff não serve como teste.
+O que dá para verificar são propriedades que a saída precisa ter sempre.
 
-Sai com código 1 se qualquer propriedade falhar — assim o CI quebra e nada
-é publicado.
+Sai com código 1 se qualquer uma falhar — o CI quebra e nada é publicado.
 """
 
 import json
@@ -15,24 +13,24 @@ from pathlib import Path
 
 ARQUIVO = Path(__file__).parent / "dados" / "comentario.json"
 
-VERBOS_CAUSAIS = ["causou", "causa ", "provocou", "provoca ", "levou a",
-                  "resultou em", "fez com que", "por causa d", "devido a"]
+VERBOS_CAUSAIS = ["causou", "causa ", "causam", "provocou", "provoca ", "levou a",
+                  "resultou em", "fez com que", "por causa d", "devido a",
+                  "em razão d", "graças a"]
+
+VERBOS_PRESCRITIVOS = ["recomend", "deve ", "deveria", "sugere-se", "aconselh"]
 
 
 def numeros_permitidos(fatos: dict) -> set[str]:
-    """Todo número citado tem que ser um destes — ou o modelo inventou."""
-    brutos = [fatos["atual"], fatos["ha_12_meses"], fatos["minimo"], fatos["maximo"]]
-    if fatos["ha_12_meses"] is not None:
-        brutos.append(abs(fatos["atual"] - fatos["ha_12_meses"]))
-
-    # "12" é a janela de comparação ("em 12 meses"), não um valor da série.
-    permitidos = {str(fatos["meses_observados"]), "12"}
-    for valor in brutos:
-        if valor is None:
-            continue
-        permitidos.add(f"{valor:.2f}".replace(".", ","))
-        permitidos.add(f"{valor:.1f}".replace(".", ","))
-        permitidos.add(f"{valor:g}".replace(".", ","))
+    """Todo número citado tem que sair daqui — senão o modelo inventou."""
+    permitidos = {"12"}  # a janela de comparação ("em 12 meses")
+    for f in fatos.values():
+        for valor in (f["atual"], f["ha_12_meses"], f["variacao_12m"]):
+            if valor is None:
+                continue
+            for v in (valor, abs(valor)):
+                permitidos.add(f"{v:.2f}".replace(".", ","))
+                permitidos.add(f"{v:.1f}".replace(".", ","))
+                permitidos.add(f"{v:g}".replace(".", ","))
     return permitidos
 
 
@@ -46,45 +44,50 @@ def main() -> None:
     falhas = []
 
     # 1. Todo número citado existe nos dados.
-    # Datas (set/2026, 09/2026) saem antes da varredura: o ano não é um valor da série.
+    # Datas saem antes: o ano não é um valor de série.
     permitidos = numeros_permitidos(fatos)
-    sem_datas = re.sub(r"\b\w{3,10}[/-]\d{4}\b|\b\d{1,2}[/-]\d{4}\b", " ", texto)
-    citados = re.findall(r"\d+(?:,\d+)?", sem_datas)
-    inventados = [n for n in citados if n not in permitidos]
+    sem_datas = re.sub(r"\b\w{3,10}[/-]\d{4}\b|\b\d{1,2}[/-]\d{4}\b|\b(?:19|20)\d{2}\b",
+                       " ", texto)
+    inventados = [n for n in re.findall(r"\d+(?:,\d+)?", sem_datas) if n not in permitidos]
     if inventados:
-        falhas.append(f"números que não existem nos dados: {inventados} "
-                      f"(permitidos: {sorted(permitidos)})")
+        falhas.append(f"números que não existem nos dados: {sorted(set(inventados))}")
 
-    # 2. Nenhuma afirmação de causa
+    # 2. Nenhuma afirmação de causa — o painel mede associação, não causalidade.
     causais = [v for v in VERBOS_CAUSAIS if v in baixo]
     if causais:
-        falhas.append(f"linguagem causal encontrada: {causais}")
+        falhas.append(f"linguagem causal: {causais}")
 
-    # 3. Variação de taxa em pontos percentuais, não em porcentagem
-    if "%" in texto and re.search(r"(caiu|subiu|aumentou|recuou|variou)[^.]{0,40}%", baixo):
+    # 3. Nenhuma recomendação — a seção prescritiva do painel é que faz isso.
+    prescritivos = [v for v in VERBOS_PRESCRITIVOS if v in baixo]
+    if prescritivos:
+        falhas.append(f"linguagem prescritiva: {prescritivos}")
+
+    # 4. Variação de taxa em pontos percentuais, não em porcentagem.
+    if re.search(r"(caiu|subiu|aumentou|recuou|variou|avançou)[^.]{0,40}%", baixo):
         if "p.p." not in baixo and "pontos percentuais" not in baixo:
             falhas.append("variação expressa em % sem usar pontos percentuais")
 
-    # 4. Cita o mês de referência
-    if fatos["mes"].split("/")[0] not in baixo:
-        falhas.append(f"não menciona o mês de referência ({fatos['mes']})")
+    # 5. Cita pelo menos um mês de referência (as séries têm defasagens diferentes).
+    meses_citados = [f["mes"] for f in fatos.values() if f["mes"].split("/")[0] in baixo]
+    if not meses_citados:
+        falhas.append("não menciona nenhum mês de referência")
 
-    # 5. Tamanho plausível (2 a 3 frases)
-    if not 80 <= len(texto) <= 700:
+    # 6. Tamanho plausível para 3 a 4 frases.
+    if not 150 <= len(texto) <= 1200:
         falhas.append(f"tamanho fora do esperado: {len(texto)} caracteres")
 
-    # 6. Sem markdown nem preâmbulo
-    if re.match(r"^\s*(#|\*|-|\d\.|aqui est|segue)", baixo):
+    # 7. Sem markdown nem preâmbulo.
+    if re.match(r"^\s*(#|\*|-|\d\.|aqui est|segue|com base)", baixo):
         falhas.append("começa com markdown ou preâmbulo")
 
-    print(f"texto avaliado:\n  {texto}\n")
+    print(f"leitura avaliada:\n  {texto}\n")
     if falhas:
         print(f"FALHOU em {len(falhas)} propriedade(s):")
         for f in falhas:
             print(f"  ✗ {f}")
         sys.exit(1)
 
-    print("todas as 6 propriedades passaram ✓")
+    print(f"todas as 7 propriedades passaram ✓  (meses citados: {', '.join(meses_citados)})")
 
 
 if __name__ == "__main__":

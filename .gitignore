@@ -1,7 +1,7 @@
 # Artefatos de build — o pipeline regenera a cada execução.
-# Commitar isso faria o repositório inchar e criaria conflito a cada run.
 dados/
 public/
+painel.html
 
 __pycache__/
 *.pyc
